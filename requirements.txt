@@ -3,3 +3,5 @@ streamlit-option-menu==0.3.12
 opencv-python-headless==4.8.1.78
 numpy==1.26.1
 pandas==2.1.1
+supervision==0.3.0
+ultralytics==8.0.196
