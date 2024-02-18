@@ -163,9 +163,21 @@ if st.session_state.logged_in:
             st.header("Camera Access")
             camera_feed_checkbox = st.checkbox("Show Camera Feed", key="camera_feed_checkbox_col1")
             if camera_feed_checkbox:
-                video_capture = cv2.VideoCapture(0)  # Initialize video capture
-                ret, frame = video_capture.read()
-                st.image(frame, channels="BGR", use_column_width=True)
+                # st.title("Webcam Live Feed")
+                # run = st.checkbox('Run')
+                FRAME_WINDOW = st.image([])
+                camera = cv2.VideoCapture(0)
+
+                while camera_feed_checkbox:
+                    _, frame = camera.read()
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    FRAME_WINDOW.image(frame)
+                else:
+                    st.write('Stopped')
+                # video_capture = cv2.VideoCapture(0)  # Initialize video capture
+                # ret, frame = video_capture.read()
+                # st.image(frame, channels="BGR", use_column_width=True)
+                
 
         # Video Upload
         with col2:
