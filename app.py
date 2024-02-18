@@ -3,10 +3,137 @@ import sqlite3
 import streamlit as st
 import cv2
 import numpy as np
-#import streamlit_option_menu
 from streamlit_option_menu import option_menu
-import pandas as pd
-import cv2
+import supervision as sv
+from ultralytics import YOLO
+import os
+
+def model_run(SOURCE_VIDEO_PATH, TARGET_VIDEO_PATH):
+    model = YOLO(os.path.relpath("best.pt"))
+    model.fuse()
+
+    # initiate polygon zone
+    polygon = np.array([
+        [50,1000],
+        [1050, 1000],
+        [1050, 300],
+        [50, 300]
+    ])
+
+    list_of_dict = []
+    in_count = 0
+    out_count = 0
+    in_check = False
+    out_check = False
+
+    import matplotlib.pyplot as plt
+    from PIL import Image
+
+    # create VideoInfo instance
+    video_info = sv.VideoInfo.from_video_path(SOURCE_VIDEO_PATH)
+
+    # create frame generator
+    generator = sv.video.get_video_frames_generator(SOURCE_VIDEO_PATH)
+
+    # create LineCounter instance
+    # line_counter = sv.LineZone(start=LINE_START, end=LINE_END)
+
+    # create ZoneCounter instance
+    zone = sv.PolygonZone(polygon=polygon, frame_resolution_wh=video_info.resolution_wh)
+
+    # create ZoneCounter instance
+    zone_2 = sv.PolygonZone(polygon=polygon, frame_resolution_wh=video_info.resolution_wh)
+
+    # create instance of BoxAnnotator, LineCounterAnnotator and ZoneCounterAnnotator
+    # line_annotator = sv.LineZoneAnnotator(
+    #    thickness=4, 
+    #    text_thickness=4, 
+    #    text_scale=2
+    #)
+
+    box_annotator = sv.BoxAnnotator(
+        thickness=4,
+        text_thickness=4,
+        text_scale=2
+    )
+
+    zone_annotator = sv.PolygonZoneAnnotator(
+        zone=zone, 
+        color=sv.Color.white(), 
+        thickness=6, 
+        text_thickness=6, 
+        text_scale=2
+    )
+
+    zone_annotator_2 = sv.PolygonZoneAnnotator(
+        zone=zone_2, 
+        color=sv.Color.blue(), 
+        thickness=6, 
+        text_thickness=6, 
+        text_scale=2
+    )
+
+    # open target video file
+    with sv.VideoSink(TARGET_VIDEO_PATH, video_info) as sink:  
+        for result in model.track(source=SOURCE_VIDEO_PATH, tracker = 'bytetrack.yaml', show=False, stream=True, agnostic_nms=True, persist=True ):
+
+            frame = result.orig_img
+            detections = sv.Detections.from_yolov8(result)
+
+            if result.boxes.id is not None:
+                detections.tracker_id = result.boxes.id.cpu().numpy().astype(int)
+            
+            labels = [
+                f"{tracker_id} {model.model.names[class_id]} {confidence:0.2f}"
+                for _, confidence, class_id, tracker_id
+                in detections
+            ]
+
+            frame = box_annotator.annotate(
+                scene=frame, 
+                detections=detections,
+                labels=labels
+            )
+            
+            detections = detections[detections.class_id == 2]
+            zone.trigger(detections=detections)
+            
+            if (any(detections.class_id == 2) and  any(zone.trigger(detections=detections)) and in_check == False):
+                in_count = in_count + 1
+                print(in_count)
+                in_check = True
+                out_check = False
+                #dict_entry = {"class_id": detections.class_id, "track_id": detections.tracker_id}
+                #list_of_dict.append(dict_entry)
+            
+            detections = sv.Detections.from_yolov8(result)
+            detections = detections[detections.class_id == 3]
+            zone_2.trigger(detections=detections)
+            
+            if (any(detections.class_id == 3) and  any(zone_2.trigger(detections=detections)) and out_check == False):
+                out_count = out_count + 1
+                print(out_count)
+                out_check = True
+                in_check = False
+                #dict_entry = {"class_id": detections.class_id, "track_id": detections.tracker_id}
+                #list_of_dict.append(dict_entry)
+            
+            #line_counter.trigger(detections=detections)
+            #line_annotator.annotate(frame=frame, line_counter=line_counter)
+            frame = zone_annotator.annotate(scene=frame)
+            frame = zone_annotator_2.annotate(scene=frame)
+            
+            #plt.imshow(frame)
+            #plt.show()
+            #print(detections.class_id)
+            #print(detections.tracker_id)
+            
+            sink.write_frame(frame)
+
+def save_uploadedfile(uploadedfile):
+    with open(os.path.join("tempDir",uploadedfile.name),"wb") as f:
+        f.write(uploadedfile.getbuffer())
+    return st.success("Saved File:{} to tempDir".format(uploadedfile.name))
 
 st.set_page_config(
     page_title="OREL - Assembly Line Monitoring System",
@@ -186,6 +313,8 @@ if st.session_state.logged_in:
             if upload_file_checkbox:
              uploaded_file = st.file_uploader("Choose a video file", type=["mp4", "avi"])
              if uploaded_file is not None:
+                save_uploadedfile(uploaded_file)
+                model_run(f'tempDir/{uploaded_file.name}',f'tempDir/output_{uploaded_file.name}')
                 video_contents = uploaded_file.read()
                 st.video(video_contents)
 
@@ -206,9 +335,6 @@ if st.session_state.logged_in:
 else:
     st.warning("Please log in to access the system.")
 
-
-
-
 def main():
    
     # Add footer
@@ -227,7 +353,5 @@ def main():
     
 st.markdown('<p class="footer">© 2024 Assembly Line Monitoring System</p>', unsafe_allow_html=True)
 
-
 if __name__ == "__main__":
     main()
-
