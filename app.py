@@ -7,6 +7,7 @@ from streamlit_option_menu import option_menu
 import supervision as sv
 from ultralytics import YOLO
 import os
+import glob
 
 def model_run(SOURCE_VIDEO_PATH, TARGET_VIDEO_PATH):
     model = YOLO(os.path.relpath("best.pt"))
@@ -127,8 +128,10 @@ def model_run(SOURCE_VIDEO_PATH, TARGET_VIDEO_PATH):
             #plt.show()
             #print(detections.class_id)
             #print(detections.tracker_id)
-            
             sink.write_frame(frame)
+    
+    print(in_count, out_count)
+    return in_count, out_count  
 
 def save_uploadedfile(uploadedfile):
     with open(os.path.join("tempDir",uploadedfile.name),"wb") as f:
@@ -303,25 +306,26 @@ if st.session_state.logged_in:
                     st.write('Stopped')
                 # video_capture = cv2.VideoCapture(0)  # Initialize video capture
                 # ret, frame = video_capture.read()
-                # st.image(frame, channels="BGR", use_column_width=True)
-                
-
+                # st.image(frame, channels="BGR", use_column_width=True)      
         # Video Upload
         with col2:
             st.header("Video Upload")
             upload_file_checkbox = st.checkbox("Upload from machine", key="upload_file_checkbox_col2")
             if upload_file_checkbox:
+             files = glob.glob('tempDir/*')
+             for f in files:
+                    os.remove(f)
              uploaded_file = st.file_uploader("Choose a video file", type=["mp4", "avi"])
              if uploaded_file is not None:
                 save_uploadedfile(uploaded_file)
-                model_run(f'tempDir/{uploaded_file.name}',f'tempDir/output_{uploaded_file.name}')
-                video_contents = uploaded_file.read()
-                st.video(video_contents)
-
-                # Your code for processing the uploaded video goes here
-                processed_video = process_video(video_contents)
+                with st.spinner('Processing...'):
+                    in_c , out_c =model_run(f'tempDir/{uploaded_file.name}',f'tempDir/output{uploaded_file.name}')
+                st.success('Processing complete!')
+                output_file = f'tempDir/output{uploaded_file.name}'
+                print(output_file)
                 st.header("Video Preview")
-                st.video(processed_video)
+                st.video(output_file, format="video/mp4", start_time=0)
+                st.subheader(f"Total Count : {min(in_c-2, out_c-2)}")
 
         # Real-time Metrics
     if selected == "Dashboard":
