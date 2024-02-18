@@ -1,6 +1,9 @@
 # Use the official Python image as a base image
 FROM python:3.9-slim
 
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get -y install build-essential
+
 # Set the working directory in the container
 WORKDIR /app
 
